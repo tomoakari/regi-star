@@ -2,10 +2,12 @@
 	import { onMount } from 'svelte';
 	import { startScanner } from '$lib/scanner';
 	import { playBeep, resumeAudio } from '$lib/beep';
+	import { speakProduct } from '$lib/speech';
 
 	type ScannedItem = {
 		jan: string;
 		name: string;
+		genre: string;
 		price: number;
 		cache: boolean;
 		loading: boolean;
@@ -30,7 +32,7 @@
 
 	async function fetchProduct(jan: string): Promise<void> {
 		// ローディング状態で先にリストに追加
-		const item: ScannedItem = { jan, name: '検索中...', price: 0, cache: false, loading: true };
+		const item: ScannedItem = { jan, name: '検索中...', genre: '', price: 0, cache: false, loading: true };
 		scannedItems = [item, ...scannedItems];
 
 		try {
@@ -45,10 +47,14 @@
 			}
 			const data = await res.json();
 			item.name = data.name;
+			item.genre = data.genre ?? '';
 			item.price = data.price;
 			item.cache = data.cache;
 			item.loading = false;
 			scannedItems = [...scannedItems];
+
+			// 商品名と価格を読み上げ
+			speakProduct(data.name, data.price);
 		} catch {
 			item.name = '通信エラー';
 			item.error = '通信エラー';
@@ -163,7 +169,10 @@
 					<li class:latest={i === 0} class:error={!!item.error} class:loading={item.loading}>
 						<div class="item-info">
 							<span class="item-name">{item.name}</span>
-							<span class="item-jan">{item.jan}</span>
+							<span class="item-meta">
+								{#if item.genre}<span class="item-genre">{item.genre}</span>{/if}
+								<span class="item-jan">{item.jan}</span>
+							</span>
 						</div>
 						<div class="item-price">
 							{#if item.loading}
@@ -366,6 +375,20 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	.item-meta {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+	}
+
+	.item-genre {
+		font-size: 0.7rem;
+		color: #ff6b35;
+		background: rgba(255, 107, 53, 0.15);
+		padding: 0.1rem 0.4rem;
+		border-radius: 4px;
 	}
 
 	.item-jan {

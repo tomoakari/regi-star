@@ -2,13 +2,14 @@
  * GET /api/product/[jan]
  * JAN コードから商品情報を返す単機能エンドポイント
  * ① DB にあれば即返す（Yahoo も LLM も呼ばない）
- * ② なければ Yahoo 検索 → DB 保存 → 返す
+ * ② なければ Yahoo 検索 → LLM 整形 → DB 保存 → 返す
  */
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { findProduct, upsertProduct } from '$lib/server/db';
 import { searchByJan } from '$lib/server/yahoo';
+import { formatProduct } from '$lib/server/llm';
 
 /** JAN コードの簡易バリデーション (8桁 or 13桁の数字) */
 function isValidJan(jan: string): boolean {
@@ -41,13 +42,26 @@ export const GET: RequestHandler = async ({ params }) => {
 		throw error(404, `Product not found for JAN: ${jan}`);
 	}
 
-	// Phase 3 で LLM 整形を入れるまでは raw_title をそのまま name に入れる
+	// ③ LLM で整形（失敗時は raw 値をフォールバック）
+	let name = yahoo.title;
+	let genre = '';
+	let price = yahoo.price;
+
+	try {
+		const formatted = await formatProduct(yahoo.title, yahoo.price);
+		name = formatted.name;
+		genre = formatted.genre;
+		price = formatted.price;
+	} catch (err) {
+		console.error('LLM formatting failed, using raw values:', err);
+	}
+
 	const product = {
 		jan_code: jan,
 		raw_title: yahoo.title,
-		name: yahoo.title,
-		genre: '',
-		price: yahoo.price,
+		name,
+		genre,
+		price,
 		source: 'yahoo'
 	};
 
