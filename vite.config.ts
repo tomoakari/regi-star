@@ -7,14 +7,17 @@ export default defineConfig({
 		sveltekit(),
 		SvelteKitPWA({
 			manifest: {
-				name: 'regi-star',
+				name: 'regi-star — レジ打ちごっこ',
 				short_name: 'regi-star',
-				description: 'スーパーのレジ打ちごっこ PWA',
-				theme_color: '#ff6b35',
-				background_color: '#ffffff',
+				description: 'バーコードをスキャンして遊ぶレジ打ちごっこ PWA',
+				theme_color: '#FF6B35',
+				background_color: '#f5f5f7',
 				display: 'standalone',
+				orientation: 'portrait',
 				scope: '/',
 				start_url: '/',
+				id: '/',
+				categories: ['entertainment', 'education'],
 				icons: [
 					{
 						src: '/pwa-192x192.png',
@@ -24,7 +27,8 @@ export default defineConfig({
 					{
 						src: '/pwa-512x512.png',
 						sizes: '512x512',
-						type: 'image/png'
+						type: 'image/png',
+						purpose: 'any'
 					}
 				]
 			},

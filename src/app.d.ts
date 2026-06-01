@@ -26,6 +26,22 @@ declare global {
 		static getSupportedFormats(): Promise<string[]>;
 		detect(image: ImageBitmapSource): Promise<DetectedBarcode[]>;
 	}
+
+	/** HTML <install> 要素 (Chrome/Edge 148+) */
+	interface HTMLInstallElement extends HTMLElement {
+		installurl?: string;
+		manifestid?: string;
+	}
+
+	namespace svelteHTML {
+		interface IntrinsicElements {
+			install: SvelteHTMLElements['div'] & {
+				installurl?: string;
+				manifestid?: string;
+				class?: string;
+			};
+		}
+	}
 }
 
 export {};
