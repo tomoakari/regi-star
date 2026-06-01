@@ -24,7 +24,7 @@ export const GET: RequestHandler = async ({ params }) => {
 	}
 
 	// ① キャッシュヒット
-	const cached = findProduct(jan);
+	const cached = await findProduct(jan);
 	if (cached) {
 		return json({
 			jan_code: cached.jan_code,
@@ -65,7 +65,7 @@ export const GET: RequestHandler = async ({ params }) => {
 		source: 'yahoo'
 	};
 
-	upsertProduct(product);
+	await upsertProduct(product);
 
 	return json({
 		jan_code: product.jan_code,

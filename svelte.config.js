@@ -1,4 +1,4 @@
-import adapter from '@sveltejs/adapter-node';
+import adapter from '@sveltejs/adapter-vercel';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
@@ -7,7 +7,7 @@ const config = {
 		runes: ({ filename }) => (filename.split(/[/\\]/).includes('node_modules') ? undefined : true)
 	},
 	kit: {
-		// adapter-node: 自前ホスト / スマホ実機テスト(LAN内HTTPS, トンネル)向け
+		// adapter-vercel: Vercel デプロイ向け
 		adapter: adapter()
 	}
 };
