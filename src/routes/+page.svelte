@@ -1,7 +1,16 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { startScanner, type ScanResult } from '$lib/scanner';
+	import { startScanner } from '$lib/scanner';
 	import { playBeep, resumeAudio } from '$lib/beep';
+
+	type ScannedItem = {
+		jan: string;
+		name: string;
+		price: number;
+		cache: boolean;
+		loading: boolean;
+		error?: string;
+	};
 
 	let videoEl: HTMLVideoElement | undefined = $state();
 	let stream: MediaStream | undefined = $state();
@@ -10,11 +19,46 @@
 	let stopScanner: (() => void) | undefined = $state();
 
 	/** スキャン履歴（新しい順） */
-	let scannedItems: ScanResult[] = $state([]);
+	let scannedItems: ScannedItem[] = $state([]);
+
+	/** 合計金額 */
+	let total = $derived(
+		scannedItems
+			.filter((item) => !item.loading && !item.error)
+			.reduce((sum, item) => sum + item.price, 0)
+	);
+
+	async function fetchProduct(jan: string): Promise<void> {
+		// ローディング状態で先にリストに追加
+		const item: ScannedItem = { jan, name: '検索中...', price: 0, cache: false, loading: true };
+		scannedItems = [item, ...scannedItems];
+
+		try {
+			const res = await fetch(`/api/product/${jan}`);
+			if (!res.ok) {
+				const msg = res.status === 404 ? '商品が見つかりません' : `エラー (${res.status})`;
+				item.name = msg;
+				item.error = msg;
+				item.loading = false;
+				scannedItems = [...scannedItems]; // 再代入でリアクティブ更新
+				return;
+			}
+			const data = await res.json();
+			item.name = data.name;
+			item.price = data.price;
+			item.cache = data.cache;
+			item.loading = false;
+			scannedItems = [...scannedItems];
+		} catch {
+			item.name = '通信エラー';
+			item.error = '通信エラー';
+			item.loading = false;
+			scannedItems = [...scannedItems];
+		}
+	}
 
 	async function start() {
 		try {
-			// モバイルの自動再生ポリシー対策: ユーザー操作起点で AudioContext を resume
 			await resumeAudio();
 
 			stream = await navigator.mediaDevices.getUserMedia({
@@ -28,12 +72,11 @@
 
 			if (videoEl) {
 				videoEl.srcObject = stream;
-				// video が再生開始してからスキャナーを起動
 				await videoEl.play();
 
 				stopScanner = await startScanner(videoEl, (result) => {
 					playBeep();
-					scannedItems = [result, ...scannedItems];
+					fetchProduct(result.code);
 				});
 			}
 
@@ -61,6 +104,11 @@
 
 	function clearHistory() {
 		scannedItems = [];
+	}
+
+	/** 価格をカンマ区切りでフォーマット */
+	function formatPrice(price: number): string {
+		return price.toLocaleString('ja-JP');
 	}
 
 	onMount(() => {
@@ -112,12 +160,28 @@
 			</div>
 			<ul>
 				{#each scannedItems as item, i}
-					<li class:latest={i === 0}>
-						<span class="code">{item.code}</span>
-						<span class="format">{item.format}</span>
+					<li class:latest={i === 0} class:error={!!item.error} class:loading={item.loading}>
+						<div class="item-info">
+							<span class="item-name">{item.name}</span>
+							<span class="item-jan">{item.jan}</span>
+						</div>
+						<div class="item-price">
+							{#if item.loading}
+								<span class="spinner">⏳</span>
+							{:else if item.error}
+								<span class="error-mark">✕</span>
+							{:else}
+								<span>¥{formatPrice(item.price)}</span>
+							{/if}
+						</div>
 					</li>
 				{/each}
 			</ul>
+
+			<div class="total">
+				<span>合計</span>
+				<span class="total-price">¥{formatPrice(total)}</span>
+			</div>
 		</div>
 	{/if}
 </div>
@@ -171,7 +235,6 @@
 		color: #666;
 	}
 
-	/* スキャン中のアニメーションライン */
 	.scan-line {
 		position: absolute;
 		left: 10%;
@@ -282,16 +345,72 @@
 		border: 1px solid #ff6b35;
 	}
 
-	.code {
+	li.error {
+		opacity: 0.6;
+	}
+
+	li.loading {
+		opacity: 0.7;
+	}
+
+	.item-info {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		min-width: 0;
+		flex: 1;
+	}
+
+	.item-name {
+		font-weight: 600;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.item-jan {
 		font-family: 'Courier New', monospace;
-		font-weight: 700;
-		font-size: 1.1rem;
+		font-size: 0.7rem;
+		color: #888;
 		letter-spacing: 0.05em;
 	}
 
-	.format {
-		color: #888;
-		font-size: 0.75rem;
-		text-transform: uppercase;
+	.item-price {
+		font-weight: 700;
+		font-size: 1.1rem;
+		white-space: nowrap;
+		margin-left: 0.5rem;
+	}
+
+	.spinner {
+		animation: pulse 1s ease-in-out infinite;
+	}
+
+	@keyframes pulse {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.3; }
+	}
+
+	.error-mark {
+		color: #ff6b6b;
+	}
+
+	/* 合計 */
+	.total {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-top: 0.75rem;
+		padding: 0.75rem 0.8rem;
+		background: #1e1e38;
+		border-radius: 8px;
+		border-top: 2px solid #ff6b35;
+		font-size: 1.1rem;
+		font-weight: 700;
+	}
+
+	.total-price {
+		font-size: 1.3rem;
+		color: #ff6b35;
 	}
 </style>
