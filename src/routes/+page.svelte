@@ -5,6 +5,7 @@
 	import { speakProduct } from '$lib/speech';
 
 	type ScannedItem = {
+		id: number;
 		jan: string;
 		name: string;
 		genre: string;
@@ -13,6 +14,8 @@
 		loading: boolean;
 		error?: string;
 	};
+
+	let nextId = 0;
 
 	let videoEl: HTMLVideoElement | undefined = $state();
 	let stream: MediaStream | undefined = $state();
@@ -36,33 +39,36 @@
 	);
 
 	async function fetchProduct(jan: string): Promise<void> {
-		const item: ScannedItem = { jan, name: '検索中...', genre: '', price: 0, cache: false, loading: true };
-		scannedItems = [item, ...scannedItems];
+		const id = nextId++;
+		scannedItems = [{ id, jan, name: '検索中...', genre: '', price: 0, cache: false, loading: true }, ...scannedItems];
 
 		try {
 			const res = await fetch(`/api/product/${jan}`);
+			const idx = scannedItems.findIndex((i) => i.id === id);
+			if (idx === -1) return;
+
 			if (!res.ok) {
 				const msg = res.status === 404 ? '商品が見つかりません' : `エラー (${res.status})`;
-				item.name = msg;
-				item.error = msg;
-				item.loading = false;
-				scannedItems = [...scannedItems];
+				scannedItems[idx] = { ...scannedItems[idx], name: msg, error: msg, loading: false };
 				return;
 			}
+
 			const data = await res.json();
-			item.name = data.name;
-			item.genre = data.genre ?? '';
-			item.price = data.price;
-			item.cache = data.cache;
-			item.loading = false;
-			scannedItems = [...scannedItems];
+			scannedItems[idx] = {
+				...scannedItems[idx],
+				name: data.name,
+				genre: data.genre ?? '',
+				price: data.price,
+				cache: data.cache,
+				loading: false
+			};
 
 			speakProduct(data.name, data.price);
 		} catch {
-			item.name = '通信エラー';
-			item.error = '通信エラー';
-			item.loading = false;
-			scannedItems = [...scannedItems];
+			const idx = scannedItems.findIndex((i) => i.id === id);
+			if (idx !== -1) {
+				scannedItems[idx] = { ...scannedItems[idx], name: '通信エラー', error: '通信エラー', loading: false };
+			}
 		}
 	}
 
